@@ -1,0 +1,17 @@
+{
+  "strategy": "FutureTrendV1",
+  "minimal_roi": {
+    "0": 0.05
+  },
+  "stoploss": -0.03,
+  "trailing_stop": false,
+  "trailing_stop_positive": 0.01,
+  "trailing_stop_positive_offset": 0.02,
+  "trailing_only_offset_is_reached": false,
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "exit_timeout_count": 0,
+    "unit": "seconds"
+  }
+}

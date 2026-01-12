@@ -1,0 +1,17 @@
+{
+  "strategy": "FutureMeanRevV1",
+  "minimal_roi": {
+    "0": 0.08
+  },
+  "stoploss": -0.05,
+  "trailing_stop": false,
+  "trailing_stop_positive": 0.02,
+  "trailing_stop_positive_offset": 0.03,
+  "trailing_only_offset_is_reached": false,
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "exit_timeout_count": 0,
+    "unit": "seconds"
+  }
+}

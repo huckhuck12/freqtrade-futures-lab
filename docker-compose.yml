@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  freqtrade:
+    image: freqtradeorg/freqtrade:develop
+    container_name: freqtrade-futures
+    volumes:
+      - ./user_data:/freqtrade/user_data
+      - ./freqtrade-data:/freqtrade/user_data/data
+    environment:
+      - TZ=Asia/Shanghai
+    working_dir: /freqtrade
+    command: >
+      sh -c "if [ ! -d 'user_data/data' ]; then
+        mkdir -p user_data/data &&
+        ./scripts/download.sh;
+      fi &&
+      freqtrade backtest --config user_data/config/base-futures.json --strategy-path user_data/strategies --strategy-list $(basename $1) --datadir user_data/data $(test -n '$2' && echo '--timerange $2')"
+    profiles:
+      - backtest
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G

@@ -1,0 +1,18 @@
+{
+  "dry_run": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "exchange": {
+    "name": "binance"
+  },
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "fee": 0.0004,
+  "timeframe": "5m",
+  "startup_candle_count": 300,
+  "max_open_trades": 1,
+  "pair_whitelist": [
+    "BTC/USDT:USDT",
+    "ETH/USDT:USDT"
+  ]
+}
