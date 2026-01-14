@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   freqtrade:
     image: freqtradeorg/freqtrade:develop
@@ -10,12 +8,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
     working_dir: /freqtrade
-    command: >
-      sh -c "if [ ! -d 'user_data/data' ]; then
-        mkdir -p user_data/data &&
-        ./scripts/download.sh;
-      fi &&
-      freqtrade backtest --config user_data/config/base-futures.json --strategy-path user_data/strategies --strategy-list $(basename $1) --datadir user_data/data $(test -n '$2' && echo '--timerange $2')"
+    command: backtesting --config user_data/config/base-futures.json --strategy-path user_data/strategies --strategy-list FutureTrendV1
     profiles:
       - backtest
     stdin_open: true

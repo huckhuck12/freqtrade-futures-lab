@@ -2,10 +2,9 @@ from freqtrade.strategy import IStrategy
 from pandas import DataFrame
 from typing import Dict, List
 import talib.abstract as ta
-from ._base import BaseFuturesStrategy
 
 
-class FutureTrendV1(BaseFuturesStrategy):
+class FutureTrendV1(IStrategy):
     """
     Futures Trend Following Strategy V1
 
@@ -14,6 +13,45 @@ class FutureTrendV1(BaseFuturesStrategy):
     - Buy when fast EMA crosses above slow EMA and RSI < 70
     - Sell when fast EMA crosses below slow EMA or RSI > 80
     """
+
+    # Define minimal ROI
+    minimal_roi = {
+        "0": 0.05
+    }
+
+    # Define stoploss
+    stoploss = -0.03
+
+    # Use trailing stop
+    trailing_stop = False
+    trailing_stop_positive = 0.01
+    trailing_stop_positive_offset = 0.02
+    trailing_only_offset_is_reached = False
+
+    # Order types
+    order_types = {
+        'entry': 'limit',
+        'exit': 'limit',
+        'stoploss': 'market',
+        'stoploss_on_exchange': False
+    }
+
+    # Timeframe for strategy
+    timeframe = '5m'
+
+    # Stake amount in USDT
+    stake_amount = 0.01
+
+    # Number of startup candles
+    startup_candle_count = 300
+
+    # Unfilled timeout
+    unfilledtimeout = {
+        'entry': 10,
+        'exit': 10,
+        'exit_timeout_count': 0,
+        'unit': 'seconds'
+    }
 
     # Fast EMA period
     fast_ema = 12
@@ -30,7 +68,7 @@ class FutureTrendV1(BaseFuturesStrategy):
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Calculate indicators for the strategy.
+        Calculate indicators for strategy.
         """
         # Calculate EMAs
         dataframe['fast_ema'] = ta.EMA(dataframe, timeperiod=self.fast_ema)
@@ -41,28 +79,28 @@ class FutureTrendV1(BaseFuturesStrategy):
 
         return dataframe
 
-    def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Buy signal logic.
+        Entry signal logic.
         """
-        # Buy when fast EMA crosses above slow EMA and RSI < 70
-        buy_conditions = (
+        # Entry when fast EMA crosses above slow EMA and RSI < 70
+        entry_conditions = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
             (dataframe['fast_ema'].shift(1) <= dataframe['slow_ema'].shift(1)) &
             (dataframe['rsi'] < 70) &
             (dataframe['volume'] > 0)
         )
 
-        dataframe.loc[buy_conditions, 'buy'] = 1
+        dataframe.loc[entry_conditions, 'enter_long'] = 1
 
         return dataframe
 
-    def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Sell signal logic.
+        Exit signal logic.
         """
-        # Sell when fast EMA crosses below slow EMA or RSI > 80
-        sell_conditions = (
+        # Exit when fast EMA crosses below slow EMA or RSI > 80
+        exit_conditions = (
             (
                 (dataframe['fast_ema'] < dataframe['slow_ema']) &
                 (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1))
@@ -70,6 +108,6 @@ class FutureTrendV1(BaseFuturesStrategy):
             (dataframe['rsi'] > 80)
         ) & (dataframe['volume'] > 0)
 
-        dataframe.loc[sell_conditions, 'sell'] = 1
+        dataframe.loc[exit_conditions, 'exit'] = 1
 
         return dataframe
