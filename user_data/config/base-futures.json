@@ -3,10 +3,12 @@
   "trading_mode": "futures",
   "margin_mode": "isolated",
   "exchange": {
-    "name": "binance",
+    "name": "okx",
     "pair_whitelist": [
       "BTC/USDT:USDT",
-      "ETH/USDT:USDT"
+      "ETH/USDT:USDT",
+      "SOL/USDT:USDT",
+      "XRP/USDT:USDT"
     ]
   },
   "stake_currency": "USDT",
