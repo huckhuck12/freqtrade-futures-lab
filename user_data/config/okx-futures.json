@@ -1,0 +1,35 @@
+{
+  "dry_run": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "exchange": {
+    "name": "okx",
+    "pair_whitelist": [
+      "BTC/USDT:USDT",
+      "ETH/USDT:USDT"
+    ]
+  },
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "fee": 0.0002,
+  "timeframe": "5m",
+  "startup_candle_count": 300,
+  "max_open_trades": 1,
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList",
+      "config_pairs": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT"
+      ]
+    }
+  ]
+}

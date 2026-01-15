@@ -4,11 +4,10 @@ services:
     container_name: freqtrade-futures
     volumes:
       - ./user_data:/freqtrade/user_data
-      - ./freqtrade-data:/freqtrade/user_data/data
     environment:
       - TZ=Asia/Shanghai
     working_dir: /freqtrade
-    command: backtesting --config user_data/config/base-futures.json --strategy-path user_data/strategies --strategy-list FutureTrendV1
+    command: backtesting --config user_data/config/base-futures.json --strategy-path user_data/strategies --strategy-list FutureMeanRevV1 --timerange 20240101-20240131
     profiles:
       - backtest
     stdin_open: true
