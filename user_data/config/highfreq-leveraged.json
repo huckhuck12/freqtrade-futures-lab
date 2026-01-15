@@ -1,0 +1,64 @@
+{
+  "dry_run": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "exchange": {
+    "name": "okx",
+    "pair_whitelist": [
+      "BTC/USDT:USDT",
+      "ETH/USDT:USDT",
+      "SOL/USDT:USDT",
+      "XRP/USDT:USDT",
+      "DOGE/USDT:USDT",
+      "LTC/USDT:USDT",
+      "LINK/USDT:USDT",
+      "UNI/USDT:USDT",
+      "ARB/USDT:USDT",
+      "OP/USDT:USDT"
+    ],
+    "leverage": {
+      "BTC/USDT:USDT": 5,
+      "ETH/USDT:USDT": 5,
+      "SOL/USDT:USDT": 5,
+      "XRP/USDT:USDT": 3,
+      "DOGE/USDT:USDT": 3,
+      "LTC/USDT:USDT": 5,
+      "LINK/USDT:USDT": 3,
+      "UNI/USDT:USDT": 3,
+      "ARB/USDT:USDT": 3,
+      "OP/USDT:USDT": 3
+    }
+  },
+  "stake_currency": "USDT",
+  "stake_amount": 100,
+  "fee": 0.0002,
+  "timeframe": "5m",
+  "startup_candle_count": 300,
+  "max_open_trades": 5,
+  "can_short": false,
+  "entry_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "exit_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList",
+      "config_pairs": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT",
+        "SOL/USDT:USDT",
+        "XRP/USDT:USDT",
+        "DOGE/USDT:USDT",
+        "LTC/USDT:USDT",
+        "LINK/USDT:USDT",
+        "UNI/USDT:USDT",
+        "ARB/USDT:USDT",
+        "OP/USDT:USDT"
+      ]
+    }
+  ]
+}
