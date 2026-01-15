@@ -20,8 +20,8 @@
   "stake_currency": "USDT",
   "stake_amount": "unlimited",
   "fee": 0.0002,
-  "timeframe": "5m",
-  "startup_candle_count": 300,
+  "timeframe": "1m",
+  "startup_candle_count": 200,
   "max_open_trades": 10,
   "entry_pricing": {
     "price_side": "other",
