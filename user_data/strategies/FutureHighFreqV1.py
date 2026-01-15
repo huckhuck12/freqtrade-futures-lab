@@ -1,17 +1,19 @@
 from freqtrade.strategy import IStrategy
 from pandas import DataFrame
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 import talib.abstract as ta
 
 
 class FutureHighFreqV1(IStrategy):
     """
-    High Frequency Trend Following Strategy V1 (Optimized)
+    High Frequency Trend Following Strategy V1 (Fully Optimized)
 
     Strategy Logic:
-    - EMA crossover with RSI and trend filters
-    - Trailing stop for profit protection
-    - Dynamic stop-loss based on ATR
+    - EMA crossover with multi-filter confirmation
+    - Dynamic ATR-based stop loss
+    - Time-based session filter
+    - Partial profit taking
 
     Timeframe: 1m
     Pairs: 10 high-volatility futures pairs
@@ -23,16 +25,16 @@ class FutureHighFreqV1(IStrategy):
     startup_candle_count = 200
 
     minimal_roi = {
-        "0": 0.01,
-        "30": 0.005,
-        "120": 0.002,
-        "240": 0
+        "0": 0.008,
+        "15": 0.005,
+        "60": 0.002,
+        "180": 0
     }
 
     stoploss = -0.015
     trailing_stop = True
-    trailing_stop_positive = 0.008
-    trailing_stop_positive_offset = 0.012
+    trailing_stop_positive = 0.006
+    trailing_stop_positive_offset = 0.01
     trailing_only_offset_is_reached = True
 
     order_types = {
@@ -57,8 +59,8 @@ class FutureHighFreqV1(IStrategy):
     vol_ma_period = 20
 
     rsi_overbought = 70
-    rsi_buy_threshold = 65
-    rsi_sell_threshold = 55
+    rsi_buy_threshold = 55
+    rsi_sell_threshold = 60
 
     trend_filter = True
     rsi_filter = True
@@ -67,6 +69,20 @@ class FutureHighFreqV1(IStrategy):
     adx_period = 14
     adx_threshold = 25
     adx_filter = True
+
+    # Time filter parameters (UTC)
+    use_time_filter = True
+    session_start_hour = 0
+    session_end_hour = 23
+
+    # Dynamic stop loss
+    use_dynamic_stoploss = True
+    atr_sl_multiplier = 1.5
+
+    # Partial profit taking
+    use_partial_profit = True
+    partial_profit_threshold = 0.005
+    partial_profit_amount = 0.5
 
     cooldown_period = 5
 
@@ -86,12 +102,25 @@ class FutureHighFreqV1(IStrategy):
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
         dataframe['atr'] = ta.ATR(dataframe, timeperiod=self.atr_period)
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=self.adx_period)
-
         dataframe['vol_ma'] = dataframe['volume'].rolling(window=self.vol_ma_period).mean()
-
         dataframe['atr_pct'] = dataframe['atr'] / dataframe['close']
 
         return dataframe
+
+    def custom_stoploss(self, dataframe: DataFrame, pair: str, trade_id: int,
+                        current_profit: float, min_rate: float, max_rate: float,
+                        current_entry_rate: float, current_exit_rate: float,
+                        current_time: datetime) -> float:
+        """
+        Dynamic stop loss based on ATR.
+        """
+        if not self.use_dynamic_stoploss:
+            return self.stoploss
+
+        atr_pct = dataframe['atr_pct'].iloc[-1]
+        dynamic_sl = -(atr_pct * self.atr_sl_multiplier)
+
+        return max(dynamic_sl, self.stoploss)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -115,6 +144,11 @@ class FutureHighFreqV1(IStrategy):
 
         if self.adx_filter:
             conditions = conditions & (dataframe['adx'] > self.adx_threshold)
+
+        if self.use_time_filter:
+            hour = dataframe['date'].dt.hour
+            time_condition = (hour >= self.session_start_hour) & (hour < self.session_end_hour)
+            conditions = conditions & time_condition
 
         dataframe.loc[conditions, 'enter_long'] = 1
 
