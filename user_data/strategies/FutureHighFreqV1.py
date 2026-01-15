@@ -25,13 +25,13 @@ class FutureHighFreqV1(IStrategy):
     startup_candle_count = 300
 
     minimal_roi = {
-        "0": 0.006,
-        "20": 0.003,
-        "60": 0.001,
-        "120": 0
+        "0": 0.02,
+        "60": 0.01,
+        "180": 0.005,
+        "360": 0
     }
 
-    stoploss = -0.015
+    stoploss = -0.008
     trailing_stop = True
     trailing_stop_positive = 0.004
     trailing_stop_positive_offset = 0.006
@@ -55,27 +55,30 @@ class FutureHighFreqV1(IStrategy):
     slow_ema = 21
     ema50_period = 50
 
-    # RSI parameters - Balanced for quality + quantity
+    # RSI parameters - Moderate oversold
     rsi_period = 7
-    rsi_buy_threshold = 65      # Relaxed for more entries
-    rsi_sell_threshold = 70     # Later exit for more profit
+    rsi_buy_threshold = 55
+    rsi_sell_threshold = 70
     use_rsi_filter = True
 
     # ADX parameters
     adx_period = 14
-    adx_threshold = 25          # Higher for quality
+    adx_threshold = 25
     use_adx_filter = True
 
     # ATR parameters
     atr_period = 14
-    atr_max_pct = 0.04          # Moderate volatility filter
+    atr_max_pct = 0.05
     use_atr_filter = True
 
-    # Bollinger Bands for additional confirmation
+    # Strong trend filter - Only enter when price > EMA50
+    use_strong_trend_filter = True
+    ema_trend_ahead = 3  # Price must be above EMA50 for at least 3 candles
+
+    # Bollinger Bands
     bb_period = 20
     bb_std = 2.0
-    use_bb_filter = False
-    bb_position_threshold = 0.1  # Price near lower band
+    use_bb_filter = False  # Price near lower band
 
     # Volume filter
     vol_ma_period = 20
@@ -105,7 +108,7 @@ class FutureHighFreqV1(IStrategy):
         """
         dataframe['fast_ema'] = ta.EMA(dataframe, timeperiod=self.fast_ema)
         dataframe['slow_ema'] = ta.EMA(dataframe, timeperiod=self.slow_ema)
-        dataframe['ema20'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
+        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
 
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=self.adx_period)
@@ -122,6 +125,8 @@ class FutureHighFreqV1(IStrategy):
         dataframe['bb_upper'] = bb['upperband']
         dataframe['bb_position'] = (dataframe['close'] - dataframe['bb_lower']) / (dataframe['bb_upper'] - dataframe['bb_lower'])
 
+        dataframe['price_vs_ema50'] = (dataframe['close'] - dataframe['ema50']) / dataframe['ema50']
+
         return dataframe
 
     def custom_stoploss(self, dataframe: DataFrame, pair: str, trade_id: int,
@@ -137,16 +142,16 @@ class FutureHighFreqV1(IStrategy):
         atr_pct = dataframe['atr_pct'].iloc[-1]
         dynamic_sl = -(atr_pct * self.atr_sl_multiplier)
 
-        if current_profit > 0.015:
+        if current_profit > 0.02:
             return max(dynamic_sl, -0.003)
-        elif current_profit > 0.008:
-            return max(dynamic_sl, -0.006)
+        elif current_profit > 0.01:
+            return max(dynamic_sl, -0.005)
         else:
             return max(dynamic_sl, self.stoploss)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Entry signal logic - Fast EMA crossover with multi-confirmation.
+        Entry signal logic - Strong trend following.
         """
         ema_crossover = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
@@ -154,6 +159,9 @@ class FutureHighFreqV1(IStrategy):
         )
 
         conditions = ema_crossover & (dataframe['volume'] > 0)
+
+        if self.use_strong_trend_filter:
+            conditions = conditions & (dataframe['close'] > dataframe['ema50'])
 
         if self.use_rsi_filter:
             conditions = conditions & (dataframe['rsi'] < self.rsi_buy_threshold)
@@ -163,12 +171,6 @@ class FutureHighFreqV1(IStrategy):
 
         if self.use_atr_filter:
             conditions = conditions & (dataframe['atr_pct'] < self.atr_max_pct)
-
-        if self.use_bb_filter:
-            conditions = conditions & (dataframe['bb_position'] < self.bb_position_threshold)
-
-        if self.use_vol_filter:
-            conditions = conditions & (dataframe['vol_ratio'] > self.vol_multiplier)
 
         if self.use_time_filter:
             hour = dataframe['date'].dt.hour
@@ -181,7 +183,7 @@ class FutureHighFreqV1(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Exit signal logic - Early exit on trend reversal.
+        Exit signal logic - Trend reversal or profit target.
         """
         ema_crossover = (
             (dataframe['fast_ema'] < dataframe['slow_ema']) &
@@ -195,9 +197,6 @@ class FutureHighFreqV1(IStrategy):
 
         if self.use_adx_filter:
             conditions = conditions | (dataframe['adx'] < self.adx_threshold)
-
-        if self.use_bb_filter:
-            conditions = conditions | (dataframe['bb_position'] > 0.9)
 
         dataframe.loc[conditions, 'exit'] = 1
 
