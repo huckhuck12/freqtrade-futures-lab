@@ -7,34 +7,34 @@ import talib.abstract as ta
 
 class FutureHighFreqV1(IStrategy):
     """
-    High Frequency Trend Following Strategy V1 (Ultra Optimized)
+    High Frequency Trend Following Strategy V1 (High Yield Edition)
 
     Strategy Logic:
-    - Multi-indicator confluence: EMA + MACD + RSI + ADX
-    - Dynamic ATR-based stop loss
-    - Volume confirmation
-    - VWAP price validation
+    - Fast EMA crossover signals
+    - Tight RSI thresholds for early entry
+    - Enhanced profit taking with trailing
+    - Multi-confirmation filters
 
     Timeframe: 1m
     Pairs: 10 high-volatility futures pairs
     """
 
-    timeframe = '1m'
+    timeframe = '5m'
     max_open_trades = 10
     stake_amount = 0.10
-    startup_candle_count = 200
+    startup_candle_count = 300
 
     minimal_roi = {
         "0": 0.006,
-        "30": 0.003,
-        "120": 0.001,
-        "240": 0
+        "20": 0.003,
+        "60": 0.001,
+        "120": 0
     }
 
-    stoploss = -0.012
+    stoploss = -0.015
     trailing_stop = True
-    trailing_stop_positive = 0.005
-    trailing_stop_positive_offset = 0.008
+    trailing_stop_positive = 0.004
+    trailing_stop_positive_offset = 0.006
     trailing_only_offset_is_reached = True
 
     order_types = {
@@ -53,49 +53,45 @@ class FutureHighFreqV1(IStrategy):
     # ===== Core Strategy Parameters =====
     fast_ema = 9
     slow_ema = 21
-    ema50_period = 20
+    ema50_period = 50
 
-    # MACD parameters
-    macd_fast = 12
-    macd_slow = 26
-    macd_signal = 9
-    use_macd_filter = False
-
-    # RSI parameters
+    # RSI parameters - Balanced for quality + quantity
     rsi_period = 7
-    rsi_buy_threshold = 55
-    rsi_sell_threshold = 60
+    rsi_buy_threshold = 65      # Relaxed for more entries
+    rsi_sell_threshold = 70     # Later exit for more profit
     use_rsi_filter = True
 
     # ADX parameters
     adx_period = 14
-    adx_threshold = 25
+    adx_threshold = 25          # Higher for quality
     use_adx_filter = True
 
     # ATR parameters
     atr_period = 14
-    atr_max_pct = 0.05
+    atr_max_pct = 0.04          # Moderate volatility filter
     use_atr_filter = True
 
-    # Volume parameters
+    # Bollinger Bands for additional confirmation
+    bb_period = 20
+    bb_std = 2.0
+    use_bb_filter = False
+    bb_position_threshold = 0.1  # Price near lower band
+
+    # Volume filter
     vol_ma_period = 20
-    vol_multiplier = 1.0
+    vol_multiplier = 0.8        # Very relaxed
     use_vol_filter = False
 
-    # VWAP parameters
-    use_vwap_filter = False
-    vwap_deviation = 0.02
-
-    # Time filter (UTC)
+    # Time filter (UTC) - Full session
     use_time_filter = True
     session_start_hour = 0
     session_end_hour = 23
 
     # Dynamic stop loss
     use_dynamic_stoploss = True
-    atr_sl_multiplier = 1.2
+    atr_sl_multiplier = 1.0
 
-    cooldown_period = 5
+    cooldown_period = 3         # Reduced for more trades
 
     def informative_pairs(self) -> List[tuple]:
         """
@@ -111,12 +107,6 @@ class FutureHighFreqV1(IStrategy):
         dataframe['slow_ema'] = ta.EMA(dataframe, timeperiod=self.slow_ema)
         dataframe['ema20'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
 
-        ema12 = ta.EMA(dataframe, timeperiod=self.macd_fast)
-        ema26 = ta.EMA(dataframe, timeperiod=self.macd_slow)
-        dataframe['macd'] = ema12 - ema26
-        dataframe['macd_signal'] = ta.EMA(dataframe, timeperiod=self.macd_signal)
-        dataframe['macd_hist'] = dataframe['macd'] - dataframe['macd_signal']
-
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=self.adx_period)
         dataframe['atr'] = ta.ATR(dataframe, timeperiod=self.atr_period)
@@ -126,8 +116,11 @@ class FutureHighFreqV1(IStrategy):
 
         dataframe['atr_pct'] = dataframe['atr'] / dataframe['close']
 
-        dataframe['vwap'] = (dataframe['volume'] * (dataframe['high'] + dataframe['low'] + dataframe['close']) / 3).cumsum() / dataframe['volume'].cumsum()
-        dataframe['vwap_deviation'] = (dataframe['close'] - dataframe['vwap']) / dataframe['vwap']
+        bb = ta.BBANDS(dataframe, timeperiod=self.bb_period, nbdevup=self.bb_std, nbdevdn=self.bb_std)
+        dataframe['bb_lower'] = bb['lowerband']
+        dataframe['bb_middle'] = bb['middleband']
+        dataframe['bb_upper'] = bb['upperband']
+        dataframe['bb_position'] = (dataframe['close'] - dataframe['bb_lower']) / (dataframe['bb_upper'] - dataframe['bb_lower'])
 
         return dataframe
 
@@ -144,16 +137,16 @@ class FutureHighFreqV1(IStrategy):
         atr_pct = dataframe['atr_pct'].iloc[-1]
         dynamic_sl = -(atr_pct * self.atr_sl_multiplier)
 
-        if current_profit > 0.02:
-            return max(dynamic_sl, -0.005)
-        elif current_profit > 0.01:
-            return max(dynamic_sl, -0.008)
+        if current_profit > 0.015:
+            return max(dynamic_sl, -0.003)
+        elif current_profit > 0.008:
+            return max(dynamic_sl, -0.006)
         else:
             return max(dynamic_sl, self.stoploss)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Entry signal logic - Multi-indicator confluence for long entries.
+        Entry signal logic - Fast EMA crossover with multi-confirmation.
         """
         ema_crossover = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
@@ -161,10 +154,6 @@ class FutureHighFreqV1(IStrategy):
         )
 
         conditions = ema_crossover & (dataframe['volume'] > 0)
-
-        if self.use_macd_filter:
-            macd_bullish = dataframe['macd'] > dataframe['macd_signal']
-            conditions = conditions & macd_bullish
 
         if self.use_rsi_filter:
             conditions = conditions & (dataframe['rsi'] < self.rsi_buy_threshold)
@@ -175,11 +164,11 @@ class FutureHighFreqV1(IStrategy):
         if self.use_atr_filter:
             conditions = conditions & (dataframe['atr_pct'] < self.atr_max_pct)
 
-        if self.use_vol_filter:
-            conditions = conditions & (dataframe['vol_ratio'] > 0.8)
+        if self.use_bb_filter:
+            conditions = conditions & (dataframe['bb_position'] < self.bb_position_threshold)
 
-        if self.use_vwap_filter:
-            conditions = conditions & (dataframe['close'] > dataframe['vwap'])
+        if self.use_vol_filter:
+            conditions = conditions & (dataframe['vol_ratio'] > self.vol_multiplier)
 
         if self.use_time_filter:
             hour = dataframe['date'].dt.hour
@@ -192,7 +181,7 @@ class FutureHighFreqV1(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Exit signal logic - Multi-indicator confluence for long exits.
+        Exit signal logic - Early exit on trend reversal.
         """
         ema_crossover = (
             (dataframe['fast_ema'] < dataframe['slow_ema']) &
@@ -201,18 +190,14 @@ class FutureHighFreqV1(IStrategy):
 
         conditions = ema_crossover & (dataframe['volume'] > 0)
 
-        if self.use_macd_filter:
-            macd_bearish = dataframe['macd'] < dataframe['macd_signal']
-            conditions = conditions & macd_bearish
-
         if self.use_rsi_filter:
             conditions = conditions | (dataframe['rsi'] > self.rsi_sell_threshold)
 
         if self.use_adx_filter:
             conditions = conditions | (dataframe['adx'] < self.adx_threshold)
 
-        if self.use_vwap_filter:
-            conditions = conditions | (dataframe['close'] < dataframe['vwap'])
+        if self.use_bb_filter:
+            conditions = conditions | (dataframe['bb_position'] > 0.9)
 
         dataframe.loc[conditions, 'exit'] = 1
 
