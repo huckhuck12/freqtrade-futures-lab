@@ -1,0 +1,49 @@
+{
+  "dry_run": false,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "exchange": {
+    "name": "okx",
+    "api_key": "${OKX_API_KEY}",
+    "api_secret": "${OKX_API_SECRET}",
+    "api_passphrase": "${OKX_API_PASSPHRASE}",
+    "pair_whitelist": [
+      "BTC/USDT:USDT",
+      "ETH/USDT:USDT",
+      "SOL/USDT:USDT",
+      "XRP/USDT:USDT",
+      "DOGE/USDT:USDT"
+    ]
+  },
+  "stake_currency": "USDT",
+  "stake_amount": 100,
+  "fee": 0.0002,
+  "timeframe": "1m",
+  "startup_candle_count": 100,
+  "max_open_trades": 3,
+  "entry_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "exit_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList",
+      "config_pairs": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT",
+        "SOL/USDT:USDT",
+        "XRP/USDT:USDT",
+        "DOGE/USDT:USDT"
+      ]
+    }
+  ],
+  "bot_name": "freqtrade-futures-leveraged",
+  "force_entry_enable": false,
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}
