@@ -9,14 +9,11 @@ class FutureHighFreqV1(IStrategy):
     """
     High Frequency Trend Following Strategy V1 (High Yield Edition)
 
-    Strategy Logic:
-    - Fast EMA crossover signals
-    - Tight RSI thresholds for early entry
-    - Enhanced profit taking with trailing
-    - Multi-confirmation filters
-
-    Timeframe: 1m
-    Pairs: 10 high-volatility futures pairs
+    Simple and effective:
+    - Buy when RSI is low and EMA crosses up
+    - Sell when EMA crosses down or RSI is high
+    - Aggressive profit targets
+    - 5m timeframe, 10 pairs
     """
 
     timeframe = '5m'
@@ -25,179 +22,59 @@ class FutureHighFreqV1(IStrategy):
     startup_candle_count = 300
 
     minimal_roi = {
-        "0": 0.02,
-        "60": 0.01,
-        "180": 0.005,
+        "0": 0.015,
+        "30": 0.008,
+        "90": 0.004,
+        "180": 0.002,
         "360": 0
     }
 
-    stoploss = -0.008
+    stoploss = -0.015
     trailing_stop = True
-    trailing_stop_positive = 0.004
-    trailing_stop_positive_offset = 0.006
+    trailing_stop_positive = 0.006
+    trailing_stop_positive_offset = 0.01
     trailing_only_offset_is_reached = True
-
-    order_types = {
-        'entry': 'market',
-        'exit': 'market',
-        'stoploss': 'market',
-        'stoploss_on_exchange': False
-    }
-
-    unfilledtimeout = {
-        'entry': 5,
-        'exit': 5,
-        'unit': 'seconds'
-    }
 
     # ===== Core Strategy Parameters =====
     fast_ema = 9
     slow_ema = 21
-    ema50_period = 50
-
-    # RSI parameters - Moderate oversold
     rsi_period = 7
-    rsi_buy_threshold = 55
-    rsi_sell_threshold = 70
-    use_rsi_filter = True
-
-    # ADX parameters
+    rsi_buy = 55
+    rsi_sell = 70
     adx_period = 14
     adx_threshold = 25
-    use_adx_filter = True
 
-    # ATR parameters
-    atr_period = 14
-    atr_max_pct = 0.05
-    use_atr_filter = True
-
-    # Strong trend filter - Only enter when price > EMA50
-    use_strong_trend_filter = True
-    ema_trend_ahead = 3  # Price must be above EMA50 for at least 3 candles
-
-    # Bollinger Bands
-    bb_period = 20
-    bb_std = 2.0
-    use_bb_filter = False  # Price near lower band
-
-    # Volume filter
-    vol_ma_period = 20
-    vol_multiplier = 0.8        # Very relaxed
-    use_vol_filter = False
-
-    # Time filter (UTC) - Full session
-    use_time_filter = True
-    session_start_hour = 0
-    session_end_hour = 23
-
-    # Dynamic stop loss
-    use_dynamic_stoploss = True
-    atr_sl_multiplier = 1.0
-
-    cooldown_period = 3         # Reduced for more trades
+    cooldown_period = 3
 
     def informative_pairs(self) -> List[tuple]:
-        """
-        Define additional informative pairs.
-        """
         return []
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """
-        Calculate all technical indicators for the strategy.
-        """
         dataframe['fast_ema'] = ta.EMA(dataframe, timeperiod=self.fast_ema)
         dataframe['slow_ema'] = ta.EMA(dataframe, timeperiod=self.slow_ema)
-        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
-
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=self.adx_period)
-        dataframe['atr'] = ta.ATR(dataframe, timeperiod=self.atr_period)
-
-        dataframe['vol_ma'] = dataframe['volume'].rolling(window=self.vol_ma_period).mean()
-        dataframe['vol_ratio'] = dataframe['volume'] / dataframe['vol_ma']
-
-        dataframe['atr_pct'] = dataframe['atr'] / dataframe['close']
-
-        bb = ta.BBANDS(dataframe, timeperiod=self.bb_period, nbdevup=self.bb_std, nbdevdn=self.bb_std)
-        dataframe['bb_lower'] = bb['lowerband']
-        dataframe['bb_middle'] = bb['middleband']
-        dataframe['bb_upper'] = bb['upperband']
-        dataframe['bb_position'] = (dataframe['close'] - dataframe['bb_lower']) / (dataframe['bb_upper'] - dataframe['bb_lower'])
-
-        dataframe['price_vs_ema50'] = (dataframe['close'] - dataframe['ema50']) / dataframe['ema50']
-
         return dataframe
 
-    def custom_stoploss(self, dataframe: DataFrame, pair: str, trade_id: int,
-                        current_profit: float, min_rate: float, max_rate: float,
-                        current_entry_rate: float, current_exit_rate: float,
-                        current_time: datetime) -> float:
-        """
-        Dynamic stop loss based on ATR with profit protection.
-        """
-        if not self.use_dynamic_stoploss:
-            return self.stoploss
-
-        atr_pct = dataframe['atr_pct'].iloc[-1]
-        dynamic_sl = -(atr_pct * self.atr_sl_multiplier)
-
-        if current_profit > 0.02:
-            return max(dynamic_sl, -0.003)
-        elif current_profit > 0.01:
-            return max(dynamic_sl, -0.005)
-        else:
-            return max(dynamic_sl, self.stoploss)
-
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """
-        Entry signal logic - Strong trend following.
-        """
-        ema_crossover = (
+        # Golden cross
+        golden_cross = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
             (dataframe['fast_ema'].shift(1) <= dataframe['slow_ema'].shift(1))
         )
-
-        conditions = ema_crossover & (dataframe['volume'] > 0)
-
-        if self.use_strong_trend_filter:
-            conditions = conditions & (dataframe['close'] > dataframe['ema50'])
-
-        if self.use_rsi_filter:
-            conditions = conditions & (dataframe['rsi'] < self.rsi_buy_threshold)
-
-        if self.use_adx_filter:
-            conditions = conditions & (dataframe['adx'] > self.adx_threshold)
-
-        if self.use_atr_filter:
-            conditions = conditions & (dataframe['atr_pct'] < self.atr_max_pct)
-
-        if self.use_time_filter:
-            hour = dataframe['date'].dt.hour
-            time_condition = (hour >= self.session_start_hour) & (hour < self.session_end_hour)
-            conditions = conditions & time_condition
-
+        # Buy when RSI is reasonable (not overbought)
+        conditions = golden_cross & (dataframe['rsi'] < self.rsi_buy) & (dataframe['volume'] > 0)
         dataframe.loc[conditions, 'enter_long'] = 1
-
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """
-        Exit signal logic - Trend reversal or profit target.
-        """
-        ema_crossover = (
+        # Death cross
+        death_cross = (
             (dataframe['fast_ema'] < dataframe['slow_ema']) &
             (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1))
         )
-
-        conditions = ema_crossover & (dataframe['volume'] > 0)
-
-        if self.use_rsi_filter:
-            conditions = conditions | (dataframe['rsi'] > self.rsi_sell_threshold)
-
-        if self.use_adx_filter:
-            conditions = conditions | (dataframe['adx'] < self.adx_threshold)
-
+        # Or RSI overbought
+        overbought = dataframe['rsi'] > self.rsi_sell
+        conditions = (death_cross | overbought) & (dataframe['volume'] > 0)
         dataframe.loc[conditions, 'exit'] = 1
-
         return dataframe
