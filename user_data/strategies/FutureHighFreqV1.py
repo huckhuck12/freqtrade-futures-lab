@@ -7,46 +7,59 @@ import talib.abstract as ta
 
 class FutureHighFreqV1(IStrategy):
     """
-    High Frequency Trend Following Strategy V1 (Leveraged Edition)
+    Simple Trend Following Strategy
 
-    Optimized for 3-5x leverage:
-    - Tighter stop loss (leverage amplifies losses)
-    - Higher profit targets (maximize leverage benefit)
-    - Strong trend confirmation
-    - 5m timeframe, 10 pairs
+    Buy when:
+    - EMA 9 > EMA 21 (confirmed trend)
+    - Price above EMA 50 (major trend)
+    - RSI not overbought
+
+    Sell when:
+    - EMA 9 < EMA 21 (trend reversal)
+    - Or RSI overbought
     """
 
     timeframe = '5m'
-    max_open_trades = 5
+    max_open_trades = 10
     stake_amount = 0.10
     startup_candle_count = 300
 
-    # Higher profit targets for leveraged trading
+    # Higher profit targets for strong trends
     minimal_roi = {
-        "0": 0.02,      # 2% quick profit
-        "30": 0.015,    # 1.5% in 30min
-        "60": 0.01,     # 1% in 1h
-        "120": 0.005,   # 0.5% in 2h
-        "240": 0        # Hold longer
+        "0": 0.03,   # 3% quick
+        "60": 0.02,  # 2% in 1h
+        "180": 0.01, # 1% in 3h
+        "360": 0.005 # 0.5% in 6h
     }
 
-    # Tighter stop loss for leverage (5x leverage = 5x losses)
-    stoploss = -0.01
+    stoploss = -0.015
     trailing_stop = True
-    trailing_stop_positive = 0.008
-    trailing_stop_positive_offset = 0.012
+    trailing_stop_positive = 0.01
+    trailing_stop_positive_offset = 0.015
     trailing_only_offset_is_reached = True
 
-    # ===== Core Strategy Parameters =====
+    order_types = {
+        'entry': 'market',
+        'exit': 'market',
+        'stoploss': 'market',
+        'stoploss_on_exchange': False
+    }
+
+    unfilledtimeout = {
+        'entry': 10,
+        'exit': 10,
+        'unit': 'seconds'
+    }
+
+    # ===== Parameters =====
     fast_ema = 9
     slow_ema = 21
-    rsi_period = 7
-    rsi_buy = 60        # More entries
-    rsi_sell = 70
-    adx_period = 14
-    adx_threshold = 20  # Lower threshold
+    ema50_period = 50
+    rsi_period = 14
+    rsi_buy = 60
+    rsi_sell = 75
 
-    cooldown_period = 3
+    cooldown_period = 5
 
     def informative_pairs(self) -> List[tuple]:
         return []
@@ -54,32 +67,31 @@ class FutureHighFreqV1(IStrategy):
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe['fast_ema'] = ta.EMA(dataframe, timeperiod=self.fast_ema)
         dataframe['slow_ema'] = ta.EMA(dataframe, timeperiod=self.slow_ema)
+        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
-        dataframe['adx'] = ta.ADX(dataframe, timeperiod=self.adx_period)
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Golden cross
-        golden_cross = (
+        # Strong trend: Fast > Slow > EMA50
+        strong_trend = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
-            (dataframe['fast_ema'].shift(1) <= dataframe['slow_ema'].shift(1))
+            (dataframe['slow_ema'] > dataframe['ema50'])
         )
-        # Buy when RSI is reasonable
+
+        # RSI not overbought
         rsi_ok = dataframe['rsi'] < self.rsi_buy
 
-        conditions = golden_cross & rsi_ok & (dataframe['volume'] > 0)
+        conditions = strong_trend & rsi_ok & (dataframe['volume'] > 0)
         dataframe.loc[conditions, 'enter_long'] = 1
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Death cross
-        death_cross = (
-            (dataframe['fast_ema'] < dataframe['slow_ema']) &
-            (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1))
-        )
+        # Trend reversal
+        trend_reversal = dataframe['fast_ema'] < dataframe['slow_ema']
+
         # Or RSI overbought
         overbought = dataframe['rsi'] > self.rsi_sell
 
-        conditions = (death_cross | overbought) & (dataframe['volume'] > 0)
+        conditions = (trend_reversal | overbought) & (dataframe['volume'] > 0)
         dataframe.loc[conditions, 'exit'] = 1
         return dataframe
