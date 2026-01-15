@@ -6,12 +6,12 @@ import talib.abstract as ta
 
 class FutureHighFreqV1(IStrategy):
     """
-    High Frequency Trend Following Strategy V1
+    High Frequency Trend Following Strategy V1 (Optimized)
 
     Strategy Logic:
-    - Uses EMA crossover and price breakouts for trend identification
-    - Dynamic pair selection based on volatility and volume
-    - Fast entry/exit with trailing stop for profit protection
+    - EMA crossover with RSI and trend filters
+    - Trailing stop for profit protection
+    - Dynamic stop-loss based on ATR
 
     Timeframe: 1m
     Pairs: 10 high-volatility futures pairs
@@ -24,15 +24,15 @@ class FutureHighFreqV1(IStrategy):
 
     minimal_roi = {
         "0": 0.01,
-        "10": 0.005,
-        "30": 0.002,
-        "60": 0
+        "30": 0.005,
+        "120": 0.002,
+        "240": 0
     }
 
-    stoploss = -0.02
+    stoploss = -0.015
     trailing_stop = True
-    trailing_stop_positive = 0.005
-    trailing_stop_positive_offset = 0.008
+    trailing_stop_positive = 0.008
+    trailing_stop_positive_offset = 0.012
     trailing_only_offset_is_reached = True
 
     order_types = {
@@ -51,15 +51,20 @@ class FutureHighFreqV1(IStrategy):
     # ===== Strategy Parameters =====
     fast_ema = 9
     slow_ema = 21
+    ema50_period = 50
     rsi_period = 7
-    atr_period = 7
+    atr_period = 14
     vol_ma_period = 20
 
     rsi_overbought = 70
-    rsi_oversold = 30
-    vol_multiplier = 1.2
-    atr_multiplier = 0.002
-    breakout_lookback = 20
+    rsi_buy_threshold = 70
+    rsi_sell_threshold = 50
+
+    trend_filter = False
+    rsi_filter = True
+    atr_filter = False
+    atr_max_pct = 0.05
+
     cooldown_period = 5
 
     def informative_pairs(self) -> List[tuple]:
@@ -74,13 +79,11 @@ class FutureHighFreqV1(IStrategy):
         """
         dataframe['fast_ema'] = ta.EMA(dataframe, timeperiod=self.fast_ema)
         dataframe['slow_ema'] = ta.EMA(dataframe, timeperiod=self.slow_ema)
+        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=self.ema50_period)
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=self.rsi_period)
         dataframe['atr'] = ta.ATR(dataframe, timeperiod=self.atr_period)
 
         dataframe['vol_ma'] = dataframe['volume'].rolling(window=self.vol_ma_period).mean()
-
-        dataframe['highest'] = dataframe['high'].rolling(window=self.breakout_lookback).max()
-        dataframe['lowest'] = dataframe['low'].rolling(window=self.breakout_lookback).min()
 
         dataframe['atr_pct'] = dataframe['atr'] / dataframe['close']
 
@@ -90,13 +93,23 @@ class FutureHighFreqV1(IStrategy):
         """
         Entry signal logic - Buy when trend is bullish.
         """
-        dataframe.loc[
+        ema_crossover = (
             (dataframe['fast_ema'] > dataframe['slow_ema']) &
-            (dataframe['fast_ema'].shift(1) <= dataframe['slow_ema'].shift(1)) &
-            (dataframe['rsi'] < 70) &
-            (dataframe['volume'] > 0),
-            'enter_long'
-        ] = 1
+            (dataframe['fast_ema'].shift(1) <= dataframe['slow_ema'].shift(1))
+        )
+
+        conditions = ema_crossover & (dataframe['volume'] > 0)
+
+        if self.rsi_filter:
+            conditions = conditions & (dataframe['rsi'] < self.rsi_buy_threshold)
+
+        if self.trend_filter:
+            conditions = conditions & (dataframe['close'] > dataframe['ema50'])
+
+        if self.atr_filter:
+            conditions = conditions & (dataframe['atr_pct'] < self.atr_max_pct)
+
+        dataframe.loc[conditions, 'enter_long'] = 1
 
         return dataframe
 
@@ -104,10 +117,42 @@ class FutureHighFreqV1(IStrategy):
         """
         Exit signal logic - Sell when trend is bearish or conditions met.
         """
-        dataframe.loc[
+        ema_crossover = (
             (dataframe['fast_ema'] < dataframe['slow_ema']) &
-            (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1)) &
-            (dataframe['volume'] > 0),
+            (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1))
+        )
+
+        conditions = ema_crossover & (dataframe['volume'] > 0)
+
+        if self.rsi_filter:
+            conditions = conditions | (dataframe['rsi'] > self.rsi_sell_threshold)
+
+        if self.trend_filter:
+            conditions = conditions & (dataframe['close'] < dataframe['ema50'])
+
+        dataframe.loc[conditions, 'exit'] = 1
+
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """
+        Exit signal logic - Sell when trend is bearish or conditions met.
+        """
+        ema_crossover = (
+            (dataframe['fast_ema'] < dataframe['slow_ema']) &
+            (dataframe['fast_ema'].shift(1) >= dataframe['slow_ema'].shift(1))
+        )
+
+        conditions = [ema_crossover, dataframe['volume'] > 0]
+
+        if self.rsi_filter:
+            conditions.append(dataframe['rsi'] > self.rsi_sell_threshold)
+
+        if self.trend_filter:
+            conditions.append(dataframe['close'] < dataframe['ema50'])
+
+        dataframe.loc[
+            sum(conditions),
             'exit'
         ] = 1
 
