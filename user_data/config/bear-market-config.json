@@ -1,0 +1,51 @@
+{
+  "dry_run": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "exchange": {
+    "name": "okx",
+    "pair_whitelist": [
+      "BTC/USDT:USDT",
+      "ETH/USDT:USDT",
+      "SOL/USDT:USDT",
+      "XRP/USDT:USDT",
+      "DOGE/USDT:USDT",
+      "LTC/USDT:USDT",
+      "LINK/USDT:USDT",
+      "UNI/USDT:USDT",
+      "ARB/USDT:USDT",
+      "OP/USDT:USDT"
+    ]
+  },
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "fee": 0.0002,
+  "timeframe": "5m",
+  "startup_candle_count": 200,
+  "max_open_trades": 10,
+  "entry_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "exit_pricing": {
+    "price_side": "other",
+    "use_order_book": false
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList",
+      "config_pairs": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT",
+        "SOL/USDT:USDT",
+        "XRP/USDT:USDT",
+        "DOGE/USDT:USDT",
+        "LTC/USDT:USDT",
+        "LINK/USDT:USDT",
+        "UNI/USDT:USDT",
+        "ARB/USDT:USDT",
+        "OP/USDT:USDT"
+      ]
+    }
+  ]
+}

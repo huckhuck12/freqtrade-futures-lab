@@ -43,9 +43,9 @@ case "${1:-help}" in
             --timeframe 1m
         ;;
     trade)
-        echo -e "${GREEN}🎯 启动实盘交易...${NC}"
+        echo -e "${GREEN}🎯 启动实盘交易 (冬季优化策略)...${NC}"
         docker run -d \
-            --name freqtrade-leveraged \
+            --name freqtrade-winter \
             -v $(pwd)/user_data:/freqtrade/user_data \
             -e OKX_API_KEY \
             -e OKX_API_SECRET \
@@ -53,19 +53,20 @@ case "${1:-help}" in
             freqtradeorg/freqtrade:develop trade \
             --config user_data/config/live-leveraged-config.json \
             --strategy-path user_data/strategies \
-            --strategy FutureBuyHoldV2
-        echo -e "${GREEN}✅ 实盘已启动${NC}"
+            --strategy AdaptiveHighRiskStrategy
+        echo -e "${GREEN}✅ 冬季优化策略已启动${NC}"
         ;;
     stop)
         echo -e "${YELLOW}🛑 停止交易...${NC}"
-        docker stop freqtrade-leveraged && docker rm freqtrade-leveraged
+        docker stop freqtrade-winter 2>/dev/null && docker rm freqtrade-winter 2>/dev/null
+        docker stop freqtrade-leveraged 2>/dev/null && docker rm freqtrade-leveraged 2>/dev/null
         echo -e "${GREEN}✅ 已停止${NC}"
         ;;
     logs)
-        docker logs -f freqtrade-leveraged
+        docker logs -f freqtrade-winter 2>/dev/null || docker logs -f freqtrade-leveraged 2>/dev/null || echo "No running containers found"
         ;;
     status)
-        docker exec freqtrade-leveraged curl -s http://localhost:8080/api/v1/status
+        docker exec freqtrade-winter curl -s http://localhost:8080/api/v1/status 2>/dev/null || docker exec freqtrade-leveraged curl -s http://localhost:8080/api/v1/status 2>/dev/null || echo "No running containers found"
         ;;
     profit)
         docker exec freqtrade-leveraged curl -s http://localhost:8080/api/v1/profit
